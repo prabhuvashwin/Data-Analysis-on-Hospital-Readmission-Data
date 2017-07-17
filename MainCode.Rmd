@@ -1,0 +1,409 @@
+---
+title: "Code for Predictive analysis on Hospital Readmission data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r set-1}
+library(randomForest)
+library(nnet)
+library(SDMTools)
+library(tree)
+library(naivebayes)
+library(e1071)
+library(Metrics)
+library(neuralnet)
+library(class)
+library(stats)
+library(arulesViz)
+
+classify <- function(x) {
+        value = -1
+        if (startsWith(x, "E"))
+        {
+                value = 19
+        }
+        else if (startsWith(x, "V"))
+        {
+                value = 20
+        }
+        else
+        {
+                x = as.numeric(x)
+                if (x < 140) {
+                        value = 1
+                }
+                else if (x >= 140 && x < 240) {
+                        value = 2
+                }
+                else if (x >= 240 && x < 280) {
+                        value = 3
+                }
+                else if (x >= 280 && x < 290) {
+                        value = 4
+                }
+                else if (x >= 290 && x < 320) {
+                        value = 5
+                }
+                else if (x >= 320 && x < 360) {
+                        value = 6
+                }
+                else if (x >= 360 && x < 390) {
+                        value = 7
+                }
+                else if (x >= 390 && x < 460) {
+                        value = 8
+                }
+                else if (x >= 460 && x < 520) {
+                        value = 9
+                }
+                else if (x >= 520 && x < 580) {
+                        value = 10
+                }
+                else if (x >= 580 && x < 630) {
+                        value = 11
+                }
+                else if (x >= 630 && x < 680) {
+                        value = 12
+                }
+                else if (x >= 680 && x < 710) {
+                        value = 13
+                }
+                else if (x >= 710 && x < 740) {
+                        value = 14
+                }
+                else if (x >= 740 && x < 760) {
+                        value = 15
+                }
+                else if (x >= 760 && x < 780) {
+                        value = 16
+                }
+                else if (x >= 780 && x < 800) {
+                        value = 17
+                }
+                else if (x >= 800 && x < 1000) {
+                        value = 18
+                }
+        }
+        value
+}
+
+maxidx <- function(arr) {
+        return(  which(arr == max(arr)) )
+}
+```
+
+```{r set-2}
+#Fully cleaned and imputed dataset
+df <- read.csv("diabetes_clean.csv", header = TRUE, strip.white = TRUE, na.strings = c("NA", "?"," ","."))
+df$readmitted <- as.factor(df$readmitted)
+#df$readmitted <- ifelse(df$readmitted == df$readmitted[1], 0,1)
+```
+
+```{r set-20}
+train <- sample(1:nrow(df), 0.8*nrow(df)) # Split the data into 80:20 ratio for cross validation
+train_data <- df[train,] # Training data
+test_data <- df[-train,] # Test data
+```
+
+```{r set-4}
+####### Main Task: Readmitted or not #######
+# Model 1: Generalised Logistic Regression
+model.logit <- glm(readmitted~., data=train_data[,-1], family=binomial(link='logit'))
+pred.logit <- predict(model.logit,test_data, type = "response")
+pred.logit <- ifelse(pred.logit > 0.5, 1, 0)
+pred.logit.2 <- ifelse(pred.logit == 1, "TRUE", "FALSE")
+mean(pred.logit==test_data$readmitted) # Accuracy: 64.6%
+```
+
+```{r set-5}
+# Model 2: Random forest
+df$readmitted <- ifelse(df$readmitted == 1, "TRUE", "FALSE")
+df$readmitted <- as.factor(df$readmitted)
+model.rf1 <-randomForest(readmitted~., data=train_data[,-1], ntree=10, na.action=na.exclude, importance=T,proximity=T) 
+print(model.rf1) #error rate: 42.08%
+
+model.rf2 <-randomForest(readmitted~., data=train_data, ntree=20, na.action=na.exclude, importance=T,proximity=T) 
+print(model.rf2) #error rate: 40.21%
+
+model.rf3 <-randomForest(readmitted~., data=train_data, ntree=30, na.action=na.exclude, importance=T,proximity=T) 
+print(model.rf3) #error rate: 39.21%
+
+model.rf4 <-randomForest(readmitted~., data=train_data, ntree=40, na.action=na.exclude, importance=T,proximity=T) 
+print(model.rf4) #error rate: 38.32%
+
+model.rf5 <-randomForest(readmitted~., data=train_data, ntree=50, na.action=na.exclude, importance=T,proximity=T) 
+print(model.rf5) #error rate: 38.57%
+
+model.rf <- randomForest(readmitted~., data=train_data, ntree=40, mtry = 8, na.action=na.exclude, importance=T,proximity=T)
+pred.rf <- predict(model.rf, test_data)
+mean(pred.rf==test_data$readmitted) # Accuracy: 63.55%
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r plot-1, echo=FALSE}
+plot(model.rf)
+```
+
+```{r set-6}
+model.nn <- nnet(readmitted ~., data=train_data[,-1], size=5, maxit=1000)
+pred.nn <- predict(model.nn, test_data,type= "raw")
+pred.nn <- ifelse(pred.nn > 0.5, "TRUE", "FALSE")
+mean(pred.nn==test_data$readmitted) # Accuracy: 63.35%
+```
+
+```{r plot-2, echo=FALSE}
+#plot(model.nn, cex.val = 0.6, circle.cex = 2, nid = F)
+```
+
+```{r set-7}
+#Model 4: Decision tree
+df$readmitted <- as.factor(df$readmitted)
+model.tree <- tree(readmitted~., data = train_data[,-1])
+pred.tree <- predict(model.tree, test_data)
+pred.response <- ifelse(pred.tree > 0.5, "FALSE", "TRUE")
+mean(test_data$readmitted != pred.response) # Accuracy: 50%
+```
+
+```{r plot-3, echo=FALSE}
+plot(model.tree)
+text(model.tree)
+```
+
+```{r set-8}
+# Model 5: Naive Bayes
+train_data$readmitted <- as.factor(train_data$readmitted)
+test_data$readmitted <- as.factor(test_data$readmitted)
+model.nb <- naive_bayes(train_data[,-1], train_data$readmitted, laplace = 1, usekernel = T, prior = NULL)
+pred.nb <- predict(model.nb, test_data, type = "prob", threshold = 0.01, eps = 0.1)
+idx.nb <- apply(pred.nb, c(1), maxidx)
+actual_result <- ifelse(df$readmitted == df$readmitted[1], 0,1)
+mean(idx.nb-1 == actual_result) # Accuracy: 52.15%
+```
+
+```{r set-9}
+# Model 6: SVM
+model.svm <- svm(readmitted~., data = train_data, kernel = "linear",
+                 type = "C-classification", cross = 10, cost = 0.01, gamma = 1000)
+pred.svm <- predict(model.svm, test_data, decision.values = F)
+mean(pred.svm == test_data$readmitted) # Accuracy: 63.95%
+```
+
+```{r set-10}
+####### Task 1: Time in hospital #######
+model.lm.steps <- step(lm(time_in_hospital~., data=train_data), direction = "both")
+model.task1.lm <- lm(time_in_hospital ~ race + gender + age + num_lab_procedures + 
+                             num_procedures + num_medications + number_outpatient + number_inpatient + 
+                             diag_1 + number_diagnoses + max_glu_serum + A1Cresult + 
+                             metformin + glipizide + glyburide + pioglitazone + rosiglitazone + 
+                             diabetesMed + readmitted, data = train_data)
+pred.task1.lm <- predict(model.task1.lm,test_data)
+rmse(test_data$time_in_hospital,pred.task1.lm) #RMSE: 2.198489
+rmsle(test_data$time_in_hospital,pred.task1.lm) #RMSLE: 0.4379768
+```
+
+```{r set-11}
+# Model 2: Neural networks
+model.task1.nn <- nnet(time_in_hospital ~ race + gender + age + num_lab_procedures + 
+                               num_procedures + num_medications + number_outpatient + number_inpatient + 
+                               diag_1 + number_diagnoses + max_glu_serum + A1Cresult + 
+                               metformin + glipizide + glyburide + pioglitazone + rosiglitazone + 
+                               diabetesMed + readmitted, data=train_data, size=5, maxit=1000)
+pred.task1.nn <- predict(model.task1.nn, test_data)
+rmse(test_data$time_in_hospital, pred.task1.nn) #4.061443
+rmsle(test_data$time_in_hospital, pred.task1.nn) #0.9621453
+```
+
+```{r plot-4, echo=FALSE}
+#plot(model.task1.nn)
+```
+
+```{r set-12}
+# Model 3: Decision tree
+model.task1.tree <- tree(time_in_hospital ~ race + gender + age + num_lab_procedures + 
+                                 num_procedures + num_medications + number_outpatient + number_inpatient + 
+                                 diag_1 + diag_2 + number_diagnoses + max_glu_serum + A1Cresult + 
+                                 metformin + glipizide + glyburide + pioglitazone + rosiglitazone + 
+                                 diabetesMed + readmitted, data = train_data)
+pred.task1.tree <- predict(model.task1.tree, test_data)
+rmse(test_data$time_in_hospital,pred.task1.tree) #2.276108
+rmsle(test_data$time_in_hospital,pred.task1.tree) #0.4512615
+```
+
+```{r plot-5,echo=FALSE}
+plot(model.task1.tree)
+text(model.task1.tree)
+```
+
+```{r set-13}
+#Model 4: Random Forest
+model.task1.rf1 <-randomForest(time_in_hospital ~ race + gender + age + num_lab_procedures + 
+                                       num_procedures + num_medications + number_outpatient + number_inpatient + 
+                                       diag_1 + number_diagnoses + max_glu_serum + A1Cresult + 
+                                       metformin + glipizide + glyburide + pioglitazone + rosiglitazone + 
+                                       diabetesMed + readmitted, 
+                               data=train_data,ntree=10, na.action=na.exclude, importance=T,proximity=T) 
+print(model.task1.rf1) # % Var explained: 13.57%
+
+model.task1.rf2 <-randomForest(time_in_hospital ~ race + gender + age + num_lab_procedures + 
+                                       num_procedures + num_medications + number_outpatient + number_inpatient + 
+                                       diag_1 + number_diagnoses + max_glu_serum + A1Cresult + 
+                                       metformin + glipizide + glyburide + pioglitazone + rosiglitazone + 
+                                       diabetesMed + readmitted, 
+                               data=train_data,ntree=20, na.action=na.exclude, importance=T,proximity=T) 
+print(model.task1.rf2) # % Var explained: 24.02%
+
+model.task1.rf3 <-randomForest(time_in_hospital ~ race + gender + age + num_lab_procedures + 
+                                       num_procedures + num_medications + number_outpatient + number_inpatient + 
+                                       diag_1 + number_diagnoses + max_glu_serum + A1Cresult + 
+                                       metformin + glipizide + glyburide + pioglitazone + rosiglitazone + 
+                                       diabetesMed + readmitted, 
+                               data=train_data,ntree=30, na.action=na.exclude, importance=T,proximity=T) 
+print(model.task1.rf3) # % Var explained: 28.21%
+
+model.task1.rf4 <-randomForest(time_in_hospital ~ race + gender + age + num_lab_procedures + 
+                                       num_procedures + num_medications + number_outpatient + number_inpatient + 
+                                       diag_1 + number_diagnoses + max_glu_serum + A1Cresult + 
+                                       metformin + glipizide + glyburide + pioglitazone + rosiglitazone + 
+                                       diabetesMed + readmitted, 
+                               data=train_data,ntree=40, na.action=na.exclude, importance=T,proximity=T) 
+print(model.task1.rf4) # % Var explained: 30.35%
+
+model.task1.rf5 <-randomForest(time_in_hospital ~ race + gender + age + num_lab_procedures + 
+                                       num_procedures + num_medications + number_outpatient + number_inpatient + 
+                                       diag_1 + number_diagnoses + max_glu_serum + A1Cresult + 
+                                       metformin + glipizide + glyburide + pioglitazone + rosiglitazone + 
+                                       diabetesMed + readmitted, 
+                               data=train_data,ntree=50, na.action=na.exclude, importance=T,proximity=T) 
+print(model.task1.rf5) # % Var explained: 31.43%
+
+model.task1.rf <- randomForest(time_in_hospital~gender+readmitted+change+diabetesMed+glimepiride, 
+                               data=train_data, ntree=50,mtry = 27, na.action=na.exclude, importance=T,
+                               proximity=T) 
+pred.task1.rf <- predict(model.task1.rf, test_data)
+rmse(test_data$time_in_hospital,pred.task1.rf)#2.558702
+rmsle(test_data$time_in_hospital,pred.task1.rf)#0.5073352
+```
+
+```{r plot-6,echo=FALSE}
+plot(model.task1.rf)
+```
+
+```{r set-14}
+####### Task 2: Diagnoses #######
+# Model 1: SVM
+test_data$diag_3 <- as.factor(test_data$diag_3)
+
+model.task2.svm.1 <- svm(diag_2~., train_data[,-c(1,14)])
+pred.task2.svm.1 <- predict(model.task2.svm.1, newdata = test_data)
+mean(round(pred.task2.svm.1)==test_data$diag_2)
+
+model.task2.svm.2 <- svm(diag_3~., train_data[,-c(1)])
+pred.task2.svm.2 <- predict(model.task2.svm.2, newdata = test_data)
+mean(round(pred.task2.svm.2)==test_data$diag_3)
+```
+
+```{r set-15}
+# Model 2: Random forest
+
+model.task2.rf.1 <-randomForest(x=train_data[,-c(1,14)], y=train_data$diag_2, ntree=10, na.action=na.exclude, importance=T,
+                   proximity=T) 
+print(model.task2.rf.1)#23.17% error
+
+model.task2.rf.2 <-randomForest(x=train_data[,-c(1,14)], y=train_data$diag_2, ntree=20, na.action=na.exclude, importance=T,
+                   proximity=T) 
+print(model.task2.rf.2)#14.69% error
+
+model.task2.rf.3 <-randomForest(x=train_data[,-c(1,14)], y=train_data$diag_2, ntree=30, na.action=na.exclude, importance=T,
+                   proximity=T) 
+print(model.task2.rf.3)#10.43% error
+
+model.task2.rf.4 <-randomForest(x=train_data[,-c(1,14)], y=train_data$diag_2, ntree=40, na.action=na.exclude, importance=T,
+                   proximity=T) 
+print(model.task2.rf.4)#9.88% error
+
+model.task2.rf.5 <-randomForest(x=train_data[,-c(1,14)], y=train_data$diag_2, ntree=50, na.action=na.exclude, importance=T,
+                   proximity=T) 
+print(model.task2.rf.5)#6.1% error
+
+model.task2.rf.6 <-randomForest(x=train_data[,-c(1,14)], y=train_data$diag_2, ntree=60, na.action=na.exclude, importance=T,
+                   proximity=T) 
+print(model.task2.rf.6)#6.13% error
+
+#mtry.2 <- tuneRF(train_data, train_data$diag_2, ntreeTry=50, stepFactor=1.5, 
+#               improve=0.01, trace=TRUE, plot=TRUE)
+model.task2.rf <- randomForest(diag_2~., data=train_data, ntree=50,mtry = 10, na.action=na.exclude, importance=T,
+                               proximity=T) 
+
+pred.task2.rf <- predict(model.task2.rf, test_data)
+mean(as.character(pred.task2.rf)== as.character(test_data$diag_2)) # 40.68%
+
+#mtry.3 <- tuneRF(train_data, train_data$diag_3, ntreeTry=50, stepFactor=1.5, 
+#                 improve=0.01, trace=TRUE, plot=TRUE)
+model.task2.rf.2 <- randomForest(diag_3~., data=train_data, ntree=50,mtry = 5, na.action=na.exclude, importance=T,
+                               proximity=T) 
+pred.task2.rf.2 <- predict(model.task2.rf.2, test_data)
+mean(as.character(pred.task2.rf.2)== as.character(test_data$diag_3)) # 38.15%
+```
+
+```{r set-16}
+# Model 4: Artificial Neural Networks
+train_data$diag_2 <- as.factor(train_data$diag_2)
+test_data$diag_2 <- as.factor(test_data$diag_2)
+train_data$diag_3 <- as.factor(train_data$diag_3)
+test_data$diag_3 <- as.factor(test_data$diag_3)
+model.task2.nn.1 <- nnet(train_data$diag_2 ~ ., data=train_data[,-c(1,14)], size=5, maxit=1000) 
+pred.task2.nn.1 <- predict(model.task2.nn.1,newdata = test_data[,-1], type = "class")
+mean(as.character(pred.task2.nn.1)==as.character(test_data$diag_2)) # 39.19%
+
+model.task2.nn.2 <- nnet(train_data$diag_3 ~ ., data=train_data[,-c(1)], size=5, maxit=1000) 
+pred.task2.nn.2 <- as.factor(predict(model.task2.nn.2,newdata = test_data, type = "class"))
+mean(as.character(pred.task2.nn.2)==as.character(test_data$diag_3)) # 37.43%
+```
+
+```{r set-17}
+df$readmitted <- ifelse(df$readmitted == "TRUE", 1, 0)
+df.eu.dist <- dist(df[,c(12,27)], method = "euclidean")
+hClust1 <- hclust(df.eu.dist, method = "ward.D2")
+```
+
+```{r plot-20}
+plot(hClust1)
+```
+
+```{r plot-8,echo=FALSE}
+####### Outlier detection #######
+boxplot(df[,c(5,6,7,8,9,11,15)], col = "blue")
+```
+
+```{r set-19}
+####### Pattern mining #######
+df.initial <- read.csv("10kDiabetes.csv", header = TRUE, strip.white = TRUE, na.strings = c("NA", "?"," ","."))
+mining <- df
+mining$age <- df.initial$age
+mining$diag_1 <- as.factor(mining$diag_1)
+mining$diag_2 <- as.factor(mining$diag_2)
+mining$diag_3 <- as.factor(mining$diag_3)
+mining[,c(1, 5, 6, 7, 8, 9, 10, 11, 15)] <- NULL
+mining$readmitted <- df.initial$readmitted
+mining$readmitted <- as.factor(mining$readmitted)
+rules1 <- apriori(mining, parameter=list(minlen=2,supp=0.005,conf=0.8),
+                  appearance=list (rhs=c("readmitted=FALSE","readmitted=TRUE"), default="lhs"))
+rules1.sort <- sort(rules1, by="lift")
+subset.matrix<-is.subset(rules1.sort,rules1.sort)
+subset.matrix[lower.tri(subset.matrix,diag=T)] <- 0
+redudant<-colSums(subset.matrix) >= 1
+rules1.pruned <- rules1.sort[!redudant]
+rules.sub <- subset(rules1.pruned, subset = lhs %pin% "Male" & rhs %pin% "FALSE")
+```
+
+```{r plot-9,echo=FALSE}
+plot(rules.sub,method="grouped",measure = "lift", control = list(main="Diabetes medicine",cex=.8,itemLabels=T,arrowSize=0))
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
