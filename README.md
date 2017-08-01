@@ -7,3 +7,5 @@ Objective: The primary objective of this project is to predict whether the patie
 This is a classification problem. To predict whether a patient will be readmitted or not, we created six different classifiers, namely, Support Vector Machines, Generalized logistic regression, Artificial Neural Networks, Random Forest Classifier, Naïve Bayes Classifier, Decision Trees.
 
 Feature selection for these classes was done by conducting Correlation Analysis, and eliminating features with class imbalance.
+
+Readmission rate was found to be high among the Caucasians. A1C test result was a good predictor of readmission (Normal results implies less chance of readmission).
